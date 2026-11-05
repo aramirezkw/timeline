@@ -1,0 +1,616 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Project X Timeline</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Inter+Tight:wght@600;700;800&family=JetBrains+Mono:wght@400;500;700&family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+/* ───────────────────────── App shell ───────────────────────── */
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{
+  --bg:#fff;--ink:#111;--muted:#888;--panel:#fff;--font:'Inter',sans-serif;--mono:'JetBrains Mono',monospace;
+  --l:50%;--spread:0;--hl:50%;
+  display:grid;grid-template-rows:auto 1fr auto;height:100vh;overflow:hidden;
+  background:var(--bg);color:var(--ink);font-family:var(--font);
+  transition:background .35s ease,color .35s ease;
+  -webkit-font-smoothing:antialiased;
+}
+.top{display:flex;align-items:flex-end;justify-content:space-between;gap:24px;padding:24px 32px 18px;flex-wrap:wrap}
+.top h1{font-size:28px;line-height:1;font-weight:800;letter-spacing:-.03em}
+.top h1 span{color:var(--muted);font-weight:500}
+.top .sub{margin-top:8px;font-size:13px;color:var(--muted)}
+.top .ref{font-size:12px;color:var(--muted);text-align:right;line-height:1.5}
+.top .ref a{color:inherit;text-decoration:underline;text-underline-offset:3px}
+.top .ref b{color:var(--ink);font-weight:600}
+
+#stage{overflow:auto;position:relative;padding:0 32px 32px}
+
+/* ───────────────────────── Timeline core ───────────────────────── */
+.tl{position:relative;font-size:calc(var(--fs)*1px);width:max-content;min-width:100%}
+.row{display:grid;grid-template-columns:calc(var(--lab)*1px) calc((var(--W) + var(--pad))*1px);height:calc(var(--row)*1px);position:relative}
+.lab{position:sticky;left:0;z-index:4;background:var(--bg);display:flex;align-items:center;gap:10px;padding:0 16px 0 0;white-space:nowrap;overflow:hidden;transition:background .35s}
+.lab .nm{font-weight:600;overflow:hidden;text-overflow:ellipsis}
+.lab .ws{margin-left:auto;font-size:.82em;color:var(--muted);font-weight:500}
+.nolab .lab{display:none}
+.track{position:relative}
+
+.hd{position:sticky;top:0;z-index:6;background:var(--bg);transition:background .35s}
+.hd .lab{z-index:7;font-size:.8em;color:var(--muted);font-weight:600;letter-spacing:.06em;text-transform:uppercase}
+.mrow{height:var(--mh,36px)}
+.wrow{height:24px}
+.krow{height:30px}
+.mo{position:absolute;top:0;bottom:0;display:flex;align-items:flex-end;padding:0 0 6px 8px;font-weight:700;white-space:nowrap;overflow:hidden}
+.mo small{font-weight:500;color:var(--muted);margin-left:6px}
+.mo .abbr{display:none}
+[data-t=editorial] .mo .full{display:none}
+[data-t=editorial] .mo .abbr{display:inline}
+.wd{position:absolute;bottom:4px;font-size:.78em;color:var(--muted);transform:translateX(4px);font-variant-numeric:tabular-nums}
+.mk{position:absolute;top:50%;transform:translate(-50%,-50%);display:flex;align-items:center;gap:6px;white-space:nowrap;font-size:.78em;font-weight:600}
+.mk i{width:9px;height:9px;background:var(--accent);transform:rotate(45deg);flex:none}
+.mk span{position:absolute;left:12px}
+.today-tag{position:absolute;top:50%;transform:translate(-50%,-50%);font-size:.72em;font-weight:700;letter-spacing:.06em;text-transform:uppercase;background:var(--ink);color:var(--bg);padding:3px 7px;border-radius:999px;z-index:2}
+
+.bd{position:relative}
+.ov{position:absolute;top:0;bottom:0;pointer-events:none}
+.ov .wk{position:absolute;top:0;bottom:0;border-left:1px solid var(--ink);opacity:calc(var(--grid)*.12)}
+.ov .mo-l{position:absolute;top:0;bottom:0;border-left:1px solid var(--ink);opacity:calc(var(--grid)*.35)}
+.ov .alt{position:absolute;top:0;bottom:0;background:var(--ink);opacity:calc(var(--grid)*.045)}
+.ov .ms{position:absolute;top:0;bottom:0;border-left:1px dashed var(--accent);opacity:.7}
+.ov2{z-index:3}
+.ov2 .now{position:absolute;top:0;bottom:0;width:0;border-left:2px solid var(--ink)}
+
+.grp .lab,.grp .gl{font-size:.75em;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.grp{align-items:end}
+.grp .lab{align-items:flex-end;padding-bottom:6px}
+.grp .gl{position:sticky;left:0;display:flex;align-items:flex-end;height:100%;padding-bottom:6px}
+
+.bar{
+  --c:hsl(calc(var(--h) + var(--i) * var(--spread)) calc(var(--s) * 1%) var(--l));
+  position:absolute;top:50%;transform:translateY(-50%);
+  height:max(2px,calc(var(--row) * var(--bw) * 1px));border-radius:calc(var(--r)*1px);
+  background:var(--c);display:flex;align-items:center;padding:0 10px;overflow:hidden;white-space:nowrap;
+  transition:height .2s,border-radius .2s;
+}
+.bar.hero{--c:hsl(var(--h) calc(var(--s) * 1%) var(--hl))}
+.bt{overflow:hidden;text-overflow:ellipsis;font-weight:600;font-size:.92em}
+.bt em{font-style:normal;font-weight:500;opacity:.6;margin-left:8px}
+.bl{position:absolute;top:50%;transform:translateY(-50%);white-space:nowrap;font-size:.88em;color:var(--muted);font-variant-numeric:tabular-nums}
+.bl b{color:var(--ink);font-weight:600;margin-right:8px}
+.bl.up{transform:none;top:auto;bottom:calc(50% + var(--row) * var(--bw) * .25px + 6px)}
+.cell{position:absolute;top:50%;transform:translateY(-50%);height:calc(var(--row) * var(--bw) * 1px);border-radius:calc(var(--r)*1px)}
+.bar,.cell{cursor:default}
+.bar:hover,.cell:hover{filter:brightness(1.08)}
+
+/* Hide milestones/today/weeks via toggles */
+.off-ms .ms,.off-ms .krow{display:none}
+.off-now .now,.off-now .today-tag{display:none}
+.off-wk .wk,.off-wk .alt,.off-wk .wrow{display:none}
+
+/* ───────────── 01 Swiss Hairline (ref: Programa) ───────────── */
+body[data-t=swiss]{--bg:#fff;--ink:#111;--muted:#8d8d8d;--font:'Inter',sans-serif;--l:50%;--hl:52%;--spread:0}
+[data-t=swiss] .bar{background:var(--ink)}
+[data-t=swiss] .bar.hero{background:var(--c)}
+[data-t=swiss] .row.p{border-bottom:1px solid rgba(0,0,0,.06)}
+[data-t=swiss] .mo{font-size:.78em;letter-spacing:.12em;text-transform:uppercase}
+[data-t=swiss] .hd{border-bottom:1px solid #111}
+
+/* ───────────── 02 Midnight Glass (ref: Linear) ───────────── */
+body[data-t=midnight]{--bg:#09090d;--ink:#ececf2;--muted:#6c6c7a;--l:66%;--hl:66%;--spread:38}
+[data-t=midnight] .bar{background:color-mix(in srgb,var(--c) 13%,transparent);border:1px solid color-mix(in srgb,var(--c) 42%,transparent);color:var(--ink)}
+[data-t=midnight] .bar .bt::before{content:"";display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--c);margin-right:8px;vertical-align:1px}
+[data-t=midnight] .bar.hero{box-shadow:0 0 28px color-mix(in srgb,var(--c) 30%,transparent),inset 0 0 0 1px color-mix(in srgb,var(--c) 70%,transparent)}
+[data-t=midnight] .row.p{border-bottom:1px solid rgba(255,255,255,.04)}
+[data-t=midnight] .lab .nm{font-weight:500}
+[data-t=midnight] .today-tag{background:var(--accent);color:#fff}
+[data-t=midnight] .ov2 .now{border-color:var(--accent)}
+
+/* ───────────── 03 Pastel Swimlanes (ref: Airtable) ───────────── */
+body[data-t=pastel]{--bg:#fbfaf7;--ink:#1c1b19;--muted:#8f8b82;--font:'Space Grotesk',sans-serif;--l:85%;--hl:78%;--spread:55}
+[data-t=pastel] .row.p{border-bottom:2px solid var(--bg)}
+[data-t=pastel] .row.p .track{background:rgba(0,0,0,.018)}
+[data-t=pastel] .bar{color:#1c1b19;padding:0 12px}
+[data-t=pastel] .bt{font-weight:700}
+[data-t=pastel] .mo{font-size:1.25em;font-weight:700;letter-spacing:-.02em}
+
+/* ───────────── 04 Milestone Rail (ref: Miro) ───────────── */
+body[data-t=milestone]{--bg:#fff;--ink:#26241f;--muted:#8e8a80;--l:84%;--hl:62%;--spread:0}
+[data-t=milestone] .bar{border:1px solid hsl(var(--h) calc(var(--s)*1%) 42%);color:#26241f}
+[data-t=milestone] .bar.hero{color:#fff}
+[data-t=milestone] .ov .ms{border-left:2px dashed hsl(var(--h) calc(var(--s)*1%) 42%);opacity:.9}
+[data-t=milestone] .mk i{width:22px;height:22px;border-radius:50%;transform:none;background:hsl(var(--h) calc(var(--s)*1%) 42%)}
+[data-t=milestone] .mk span{left:28px;color:hsl(var(--h) calc(var(--s)*1%) 30%)}
+[data-t=milestone] .krow{height:40px}
+[data-t=milestone] .mo{font-size:.85em}
+
+/* ───────────── 05 Terminal Mono (ref: Grok / xAI) ───────────── */
+body[data-t=terminal]{--bg:#000;--ink:#d8d8d8;--muted:#5e5e5e;--font:'JetBrains Mono',monospace;--l:58%;--hl:58%;--spread:0}
+[data-t=terminal] .bar{background:var(--ink);padding:0;overflow:visible}
+[data-t=terminal] .bar::before,[data-t=terminal] .bar::after{content:"";position:absolute;top:50%;width:7px;height:7px;background:inherit;transform:translateY(-50%)}
+[data-t=terminal] .bar::before{left:-3px}
+[data-t=terminal] .bar::after{right:-3px}
+[data-t=terminal] .bar.hero{background:var(--c)}
+[data-t=terminal] .bl{text-transform:uppercase;letter-spacing:.06em;font-size:.8em}
+[data-t=terminal] .mo{font-weight:400;font-size:.8em;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+[data-t=terminal] .mo small{display:none}
+[data-t=terminal] .ov .wk{border-left-style:dotted}
+[data-t=terminal] .mk i{transform:none;background:transparent;border:1px solid var(--accent);width:11px;height:11px}
+[data-t=terminal] .mk{font-weight:400;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+[data-t=terminal] .today-tag{background:transparent;color:var(--accent);border:1px solid var(--accent);border-radius:0}
+[data-t=terminal] .ov2 .now{border-left:1px solid var(--accent)}
+
+/* ───────────── 06 Hatched Capacity (ref: Jira Plans) ───────────── */
+body[data-t=hatched]{--bg:#f3f4f7;--ink:#152038;--muted:#7d8597;--l:30%;--hl:52%;--spread:0}
+[data-t=hatched] .bar{background:repeating-linear-gradient(-45deg,var(--c) 0 7px,color-mix(in srgb,var(--c) 78%,#fff) 7px 14px);color:#fff;justify-content:flex-end;padding-right:6px}
+[data-t=hatched] .bar::after{content:"→";font-weight:700;width:18px;height:18px;border-radius:50%;background:rgba(255,255,255,.18);display:grid;place-items:center;font-size:11px}
+[data-t=hatched] .row.p{background:#fff;border-bottom:1px solid #e6e8ee}
+[data-t=hatched] .row.p .lab{background:#fff;padding-left:14px}
+[data-t=hatched] .grp .lab,[data-t=hatched] .grp{background:var(--bg)}
+[data-t=hatched] .mo{font-size:.85em}
+
+/* ───────────── 07 Editorial Index (ref: Campsite) ───────────── */
+body[data-t=editorial]{--bg:#f1eee8;--ink:#121212;--muted:#958f84;--font:'Inter Tight',sans-serif;--l:52%;--hl:52%;--spread:0}
+[data-t=editorial] .mrow{--mh:96px}
+[data-t=editorial] .mo{font-size:clamp(28px,4.2vw,60px);font-weight:800;letter-spacing:-.05em;line-height:.9;padding-left:6px}
+[data-t=editorial] .mo small{display:none}
+[data-t=editorial] .lab .nm{font-size:1.18em;font-weight:700;letter-spacing:-.02em}
+[data-t=editorial] .lab .ws{font-family:var(--mono);font-size:.72em;letter-spacing:.04em;text-transform:uppercase}
+[data-t=editorial] .bar{background:var(--ink)}
+[data-t=editorial] .bar.hero{background:var(--c)}
+[data-t=editorial] .bl{font-family:var(--mono);font-size:.78em}
+[data-t=editorial] .row.p{border-bottom:1px solid rgba(0,0,0,.08)}
+[data-t=editorial] .wd{font-family:var(--mono)}
+
+/* ───────────── 08 Candy Pills (ref: Retool / ClickUp) ───────────── */
+body[data-t=candy]{--bg:#fff;--ink:#141414;--muted:#9a9a9a;--font:'Space Grotesk',sans-serif;--l:60%;--hl:56%;--spread:47}
+[data-t=candy] .bar{color:#fff;padding:0 14px;box-shadow:0 1px 0 rgba(255,255,255,.35) inset}
+[data-t=candy] .bt{font-weight:700}
+[data-t=candy] .bar.hero{background:#141414}
+[data-t=candy] .bar.hero::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--c);margin-right:8px;flex:none}
+[data-t=candy] .mo{font-size:1.1em}
+
+/* ───────────── 09 Dotted Path (ref: SpaceXAI) ───────────── */
+body[data-t=dotted]{--bg:#fafafa;--ink:#111;--muted:#9b9b9b;--l:48%;--hl:48%;--spread:0}
+[data-t=dotted] .bar{--dot:var(--ink);background:radial-gradient(circle,var(--dot) 1.6px,transparent 2px) 0 50%/7px 100% repeat-x;height:12px;padding:0;overflow:visible;border-radius:0}
+[data-t=dotted] .bar::before,[data-t=dotted] .bar::after{content:"";position:absolute;top:50%;width:11px;height:11px;border-radius:50%;background:var(--dot);transform:translate(-50%,-50%)}
+[data-t=dotted] .bar::before{left:0;background:var(--bg);border:2px solid var(--dot);width:7px;height:7px}
+[data-t=dotted] .bar::after{left:100%}
+[data-t=dotted] .bar.hero{--dot:var(--c)}
+[data-t=dotted] .bl.up{bottom:calc(50% + 10px)}
+[data-t=dotted] .bl{font-size:.82em}
+[data-t=dotted] .mo{font-weight:500;color:var(--muted)}
+
+/* ───────────── 10 Week Blocks (ref: Bonsai / contribution grids) ───────────── */
+body[data-t=blocks]{--bg:#fff;--ink:#111;--muted:#999;--font:'Inter Tight',sans-serif;--l:50%;--hl:48%;--spread:0}
+[data-t=blocks] .cell{background:var(--ink)}
+[data-t=blocks] .cell.empty{background:var(--ink);opacity:.05}
+[data-t=blocks] .hero .cell:not(.empty){background:hsl(var(--h) calc(var(--s)*1%) var(--hl))}
+[data-t=blocks] .mo{font-size:.9em}
+
+/* ───────────────────────── Rams control unit ───────────────────────── */
+.rams{
+  --alu:#e7e5df;--alu-d:#cfccc4;--txt:#3b3a36;--org:#ff5a1f;
+  background:linear-gradient(180deg,#eeece7,#e2e0da);color:var(--txt);
+  border-top:1px solid #c9c6be;box-shadow:0 -1px 0 #fff inset;
+  font-family:'Inter',sans-serif;padding:16px 28px 18px;
+  display:flex;align-items:stretch;gap:20px;overflow-x:auto;position:relative;z-index:10;
+}
+.rams.min .sect:not(.keep){display:none}
+.sect{display:flex;flex-direction:column;gap:10px;flex:none}
+.sect h6{font-size:9px;font-weight:700;letter-spacing:.18em;text-transform:uppercase;color:#8a877f}
+.sect .row-c{display:flex;gap:12px;align-items:flex-end}
+.div{width:1px;background:#cfccc4;box-shadow:1px 0 0 #fff;flex:none}
+
+/* LCD */
+.lcd{background:#1e1e1c;border-radius:6px;padding:10px 14px;width:190px;box-shadow:inset 0 2px 6px rgba(0,0,0,.6),0 1px 0 #fff;font-family:'JetBrains Mono',monospace}
+.lcd .n{font-size:26px;color:var(--org);font-weight:700;line-height:1;letter-spacing:.02em}
+.lcd .t{font-size:12px;color:#efede6;margin-top:6px;letter-spacing:.06em;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lcd .r{font-size:10px;color:#7d7a72;margin-top:3px;letter-spacing:.06em;text-transform:uppercase}
+.steppers{display:flex;gap:6px}
+.btn{appearance:none;border:0;cursor:pointer;font:600 10px 'Inter';letter-spacing:.12em;text-transform:uppercase;color:var(--txt);
+  background:linear-gradient(180deg,#f8f7f3,#dcd9d1);border-radius:6px;padding:8px 12px;box-shadow:0 1px 0 #fff inset,0 1px 2px rgba(0,0,0,.25),0 0 0 1px #bfbcb3}
+.btn:active{transform:translateY(1px);box-shadow:0 0 0 1px #bfbcb3}
+.btn.round{width:44px;height:44px;border-radius:50%;padding:0;background:radial-gradient(circle at 40% 35%,#ff7a45,#e8450e);color:#fff;box-shadow:0 2px 6px rgba(232,69,14,.45),0 1px 0 rgba(255,255,255,.4) inset}
+.btn:focus-visible,.knob:focus-visible,.fader:focus-visible,.sw:focus-visible{outline:2px solid var(--org);outline-offset:3px}
+
+/* Knobs */
+.kn{display:flex;flex-direction:column;align-items:center;gap:6px;width:76px}
+.kwrap{position:relative;width:76px;height:76px;display:grid;place-items:center}
+.kwrap svg{position:absolute;inset:0}
+.knob{width:52px;height:52px;border-radius:50%;cursor:grab;touch-action:none;position:relative;
+  background:radial-gradient(circle at 38% 30%,#fdfcf9 0,#e9e6df 45%,#cdc9c0 100%);
+  box-shadow:0 1px 0 #fff inset,0 -2px 4px rgba(0,0,0,.08) inset,0 6px 12px rgba(0,0,0,.18),0 1px 2px rgba(0,0,0,.3)}
+.knob:active{cursor:grabbing}
+.knob .cap{position:absolute;inset:0;border-radius:50%}
+.knob .cap::after{content:"";position:absolute;left:50%;top:5px;width:3px;height:13px;margin-left:-1.5px;border-radius:2px;background:var(--org)}
+.knob.big{width:78px;height:78px}
+.kwrap.big{width:132px;height:132px}
+.kn.big{width:132px}
+.kl{font-size:9px;font-weight:700;letter-spacing:.14em;text-transform:uppercase}
+.kv{font:500 10px 'JetBrains Mono';color:#8a877f;margin-top:-4px}
+.sel-num{font:600 9px 'JetBrains Mono';fill:#8a877f;cursor:pointer}
+.sel-num.on{fill:#ff5a1f}
+
+/* Faders */
+.fd{display:flex;flex-direction:column;align-items:center;gap:6px;width:46px}
+.fader{position:relative;width:30px;height:96px;cursor:ns-resize;touch-action:none}
+.fader .groove{position:absolute;left:50%;top:4px;bottom:4px;width:5px;margin-left:-2.5px;background:#2b2a27;border-radius:3px;box-shadow:0 1px 0 #fff}
+.fader .ticks{position:absolute;left:0;right:0;top:4px;bottom:4px;background:repeating-linear-gradient(180deg,#a8a59d 0 1px,transparent 1px 11px);-webkit-mask:linear-gradient(90deg,#000 22%,transparent 22% 78%,#000 78%);mask:linear-gradient(90deg,#000 22%,transparent 22% 78%,#000 78%)}
+.fader .thumb{position:absolute;left:50%;width:28px;height:14px;margin:-7px 0 0 -14px;border-radius:3px;
+  background:linear-gradient(180deg,#faf9f6,#d7d4cc);box-shadow:0 1px 0 #fff inset,0 2px 4px rgba(0,0,0,.3),0 0 0 1px #b8b5ac}
+.fader .thumb::after{content:"";position:absolute;left:4px;right:4px;top:50%;height:2px;margin-top:-1px;background:var(--org);border-radius:1px}
+
+/* Switches */
+.sws{display:grid;gap:9px}
+.swl{display:flex;align-items:center;gap:8px;font-size:9px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;cursor:pointer;user-select:none}
+.sw{appearance:none;width:34px;height:18px;border-radius:4px;background:#bdbab2;position:relative;cursor:pointer;box-shadow:inset 0 1px 3px rgba(0,0,0,.35);transition:background .15s;flex:none}
+.sw::after{content:"";position:absolute;top:2px;left:2px;width:14px;height:14px;border-radius:3px;background:linear-gradient(180deg,#fdfcf9,#dcd9d1);box-shadow:0 1px 2px rgba(0,0,0,.35);transition:left .15s}
+.sw:checked{background:var(--org)}
+.sw:checked::after{left:18px}
+.led{width:6px;height:6px;border-radius:50%;background:#c3c0b8;box-shadow:inset 0 1px 1px rgba(0,0,0,.3)}
+.led.on{background:var(--org);box-shadow:0 0 6px var(--org)}
+.brand{font:700 10px 'Inter';letter-spacing:.2em;text-transform:uppercase;color:#8a877f;display:flex;align-items:center;gap:8px}
+.collapse{position:absolute;top:8px;right:12px}
+
+@media (max-width:720px){
+  .top{padding:16px}
+  #stage{padding:0 16px 24px}
+  .rams{padding:12px 16px;gap:18px}
+}
+</style>
+</head>
+<body data-t="swiss">
+
+<header class="top">
+  <div>
+    <h1>Project X <span>· Nov 2026 → Feb 2027</span></h1>
+    <p class="sub">Every workstream that touches Project X, on one line of sight. Sample data — edit <code>PROJECTS</code> in the file.</p>
+  </div>
+  <div class="ref" id="ref"></div>
+</header>
+
+<main id="stage"><div class="tl" id="tl"></div></main>
+
+<section class="rams" id="rams" aria-label="Design controls">
+  <div class="sect keep">
+    <div class="brand"><span class="led on"></span>PX · TL-10<button class="btn" id="collapse" aria-expanded="true" style="margin-left:auto;padding:4px 8px">Hide</button></div>
+    <div class="lcd" aria-live="polite"><div class="n" id="lcdN">01</div><div class="t" id="lcdT">Swiss Hairline</div><div class="r" id="lcdR">ref. Programa</div></div>
+    <div class="steppers"><button class="btn" id="prev" aria-label="Previous treatment">◀ Prev</button><button class="btn" id="next" aria-label="Next treatment">Next ▶</button></div>
+  </div>
+  <div class="div"></div>
+  <div class="sect keep">
+    <h6>Treatment</h6>
+    <div class="kn big" id="selector"></div>
+  </div>
+  <div class="div"></div>
+  <div class="sect">
+    <h6>Colour &amp; form</h6>
+    <div class="row-c" id="knobs"></div>
+  </div>
+  <div class="div"></div>
+  <div class="sect">
+    <h6>Density &amp; type</h6>
+    <div class="row-c" id="faders"></div>
+  </div>
+  <div class="div"></div>
+  <div class="sect">
+    <h6>Layers</h6>
+    <div class="sws" id="switches"></div>
+    <div style="display:flex;align-items:center;gap:10px;margin-top:auto">
+      <button class="btn round" id="reset" aria-label="Reset to preset" title="Reset to preset">↺</button>
+      <span class="kl" style="color:#8a877f">Reset</span>
+    </div>
+  </div>
+</section>
+
+<script>
+/* ───────────────────────── Data (placeholder — swap in real projects) ───────────────────────── */
+const WORKSTREAMS = ['Beta', 'Design', 'AI & intents', 'Research', 'Engineering', 'Go-to-market'];
+const PROJECTS = [
+  { n: 'Closed beta',                    ws: 0, s: '2026-11-23', e: '2027-02-26', hero: true },
+  { n: 'Beta cohort recruitment',        ws: 0, s: '2026-11-02', e: '2026-11-20' },
+  { n: 'Beta instrumentation',           ws: 4, s: '2026-11-09', e: '2026-11-27' },
+  { n: 'Copilot UX v3',                  ws: 1, s: '2026-11-09', e: '2026-12-18' },
+  { n: 'Prompt library & intent triage', ws: 2, s: '2026-11-16', e: '2027-01-15' },
+  { n: 'Usability round 1',              ws: 3, s: '2026-12-07', e: '2026-12-18' },
+  { n: 'Holiday code freeze',            ws: 4, s: '2026-12-21', e: '2027-01-04' },
+  { n: 'Mobile copilot exploration',     ws: 1, s: '2027-01-05', e: '2027-02-12' },
+  { n: 'Beta feedback synthesis',        ws: 3, s: '2027-01-11', e: '2027-02-19' },
+  { n: 'GA readiness plan',              ws: 5, s: '2027-02-01', e: '2027-02-26' },
+];
+const MILESTONES = [
+  { n: 'Beta kickoff',     d: '2026-11-23' },
+  { n: 'Exec review',      d: '2026-12-10' },
+  { n: 'Mid-beta readout', d: '2027-01-14' },
+  { n: 'Beta wrap',        d: '2027-02-26' },
+];
+const TODAY = '2026-11-04';
+
+/* ───────────────────────── Treatments ───────────────────────── */
+// col: show label column · text: what rides with the bar · pos: where it rides
+const T = [
+  { id: 'swiss',     name: 'Swiss Hairline',    ref: 'Programa',  url: 'https://mobbin.com/screens/a1fa8dfe-0974-4766-8a5c-8b40ee597c14', col: true,  text: 'dates', pos: 'after', p: { h: 14,  s: 95, zoom: 1, r: 2,  row: 44, bw: .3,  fs: 13, grid: .6 } },
+  { id: 'midnight',  name: 'Midnight Glass',    ref: 'Linear',    url: 'https://mobbin.com/sites/sections/f212fe62-7af1-4d5c-91fd-d712e5ab5ac1', col: true,  text: 'name',  pos: 'in',    p: { h: 250, s: 80, zoom: 1, r: 7,  row: 42, bw: .64, fs: 13, grid: .35 } },
+  { id: 'pastel',    name: 'Pastel Swimlanes',  ref: 'Airtable',  url: 'https://mobbin.com/screens/508b5288-9eee-43db-bf2a-7164a55a7ef4', col: false, text: 'both',  pos: 'in',    p: { h: 330, s: 70, zoom: 1, r: 4,  row: 52, bw: .86, fs: 13, grid: .15 } },
+  { id: 'milestone', name: 'Milestone Rail',    ref: 'Miro',      url: 'https://mobbin.com/screens/0e0bae61-13e4-40e6-a0f3-7d9b37bc06b8', col: true,  text: 'name',  pos: 'in',    p: { h: 45,  s: 95, zoom: 1, r: 3,  row: 38, bw: .62, fs: 12, grid: .9 } },
+  { id: 'terminal',  name: 'Terminal Mono',     ref: 'Grok',      url: 'https://mobbin.com/sites/sections/5809b85f-2e44-4d26-998f-9fb4e2379f13', col: false, text: 'both',  pos: 'after', p: { h: 140, s: 90, zoom: 1, r: 0,  row: 40, bw: .06, fs: 12, grid: .5 } },
+  { id: 'hatched',   name: 'Hatched Capacity',  ref: 'Jira Plans',url: 'https://mobbin.com/screens/bb434910-8aa7-46c1-bdad-cc6c98a9a6ce', col: true,  text: 'none',  pos: 'in',    p: { h: 222, s: 62, zoom: 1, r: 6,  row: 40, bw: .6,  fs: 13, grid: .4 } },
+  { id: 'editorial', name: 'Editorial Index',   ref: 'Campsite',  url: 'https://mobbin.com/sites/sections/a1873a17-191d-4553-bb94-d5c4d74d0732', col: true,  text: 'dates', pos: 'after', p: { h: 14,  s: 92, zoom: 1, r: 0,  row: 64, bw: .2,  fs: 15, grid: .3 } },
+  { id: 'candy',     name: 'Candy Pills',       ref: 'Retool',    url: 'https://mobbin.com/screens/7d0ad63c-7d74-4cec-be83-5bd2d99d9f58', col: false, text: 'name',  pos: 'in',    p: { h: 280, s: 85, zoom: 1, r: 20, row: 46, bw: .72, fs: 13, grid: .15 } },
+  { id: 'dotted',    name: 'Dotted Path',       ref: 'SpaceXAI',  url: 'https://mobbin.com/sites/sections/8bd3ce2d-1ae9-4dea-864d-28025bfe2070', col: false, text: 'both',  pos: 'up',    p: { h: 200, s: 85, zoom: 1, r: 0,  row: 56, bw: .3,  fs: 13, grid: .2 } },
+  { id: 'blocks',    name: 'Week Blocks',       ref: 'Bonsai',    url: 'https://mobbin.com/screens/31ac4b77-f4bb-448d-aa9f-8c7969b12c3b', col: true,  text: 'none',  pos: 'in',    p: { h: 160, s: 75, zoom: 1, r: 3,  row: 40, bw: .62, fs: 12, grid: .1 } },
+];
+
+/* ───────────────────────── Dates ───────────────────────── */
+const START = Date.UTC(2026, 10, 1), DAYS = 120;
+const MON = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const MONTHS = [
+  { n: 'November', y: 2026, s: 0,  len: 30 },
+  { n: 'December', y: 2026, s: 30, len: 31 },
+  { n: 'January',  y: 2027, s: 61, len: 31 },
+  { n: 'February', y: 2027, s: 92, len: 28 },
+];
+const ymd = s => s.split('-').map(Number);
+const di = s => { const [y, m, d] = ymd(s); return (Date.UTC(y, m - 1, d) - START) / 864e5; };
+const fmt = s => { const [, m, d] = ymd(s); return MON[m - 1] + ' ' + d; };
+const dayNum = i => new Date(START + i * 864e5).getUTCDate();
+const WEEKS = []; for (let i = 1; i <= DAYS; i += 7) WEEKS.push(i); // Mondays (Nov 2 2026 is a Monday)
+
+/* ───────────────────────── State ───────────────────────── */
+const state = { t: 0, v: { ...T[0].p }, sw: { now: true, ms: true, wk: true, grp: false } };
+try {
+  const saved = JSON.parse(localStorage.getItem('px-timeline') || 'null');
+  if (saved && T[saved.t]) Object.assign(state, saved);
+} catch (e) {}
+const save = () => { try { localStorage.setItem('px-timeline', JSON.stringify(state)); } catch (e) {} };
+
+/* ───────────────────────── Render ───────────────────────── */
+const tl = document.getElementById('tl');
+const stage = document.getElementById('stage');
+const esc = s => s.replace(/&/g, '&amp;').replace(/</g, '&lt;');
+
+function render() {
+  const t = T[state.t], v = state.v;
+  document.body.dataset.t = t.id;
+  const lab = t.col ? (t.id === 'editorial' ? 300 : 240) : 0;
+  const pad = t.pos === 'after' ? 150 : 24; // room for labels past the last bar
+  const avail = Math.max(480, stage.clientWidth - 64 - lab - pad);
+  const px = (avail / DAYS) * v.zoom;
+  const W = Math.round(px * DAYS);
+  const X = i => (i * px).toFixed(1);
+
+  const b = document.body.style;
+  b.setProperty('--h', v.h); b.setProperty('--s', v.s);
+  b.setProperty('--accent', `hsl(${v.h} ${v.s}% 50%)`);
+  const ts = tl.style;
+  ts.setProperty('--lab', lab); ts.setProperty('--W', W); ts.setProperty('--pad', pad); ts.setProperty('--row', v.row);
+  ts.setProperty('--bw', v.bw); ts.setProperty('--r', v.r); ts.setProperty('--fs', v.fs); ts.setProperty('--grid', v.grid);
+  tl.className = 'tl' + (t.col ? '' : ' nolab') + (state.sw.now ? '' : ' off-now') + (state.sw.ms ? '' : ' off-ms') + (state.sw.wk ? '' : ' off-wk');
+
+  // Header
+  const nowX = X(di(TODAY) + .5);
+  let h = '<div class="hd">';
+  h += `<div class="row mrow"><div class="lab">Project</div><div class="track">${MONTHS.map(m =>
+    `<div class="mo" style="left:${X(m.s)}px;width:${X(m.len)}px"><span class="full">${m.n}</span><span class="abbr">${m.n.slice(0, 3)}.</span><small>${m.y}</small></div>`).join('')}</div></div>`;
+  h += `<div class="row wrow"><div class="lab"></div><div class="track">${WEEKS.map(i =>
+    `<span class="wd" style="left:${X(i)}px">${dayNum(i)}</span>`).join('')}</div></div>`;
+  h += `<div class="row krow"><div class="lab">Milestones</div><div class="track">${MILESTONES.map(m =>
+    `<div class="mk" style="left:${X(di(m.d) + .5)}px" title="${esc(m.n)} · ${fmt(m.d)}"><i></i><span>${esc(m.n)}</span></div>`).join('')}
+    <span class="today-tag" style="left:${nowX}px">Today</span></div></div>`;
+  h += '</div>';
+
+  // Rows
+  let list = PROJECTS.map(p => ({ ...p, type: 'p' }));
+  if (state.sw.grp) {
+    list = [];
+    WORKSTREAMS.forEach((w, wi) => {
+      const ps = PROJECTS.filter(p => p.ws === wi);
+      if (!ps.length) return;
+      list.push({ type: 'g', n: w });
+      ps.forEach(p => list.push({ ...p, type: 'p' }));
+    });
+  }
+
+  let rows = '';
+  for (const p of list) {
+    if (p.type === 'g') {
+      rows += `<div class="row grp" style="height:${Math.max(30, v.row * .7)}px"><div class="lab">${esc(p.n)}</div><div class="track">${t.col ? '' : `<span class="gl">${esc(p.n)}</span>`}</div></div>`;
+      continue;
+    }
+    const s = di(p.s), e = di(p.e) + 1, l = X(s), w = X(e - s);
+    const dates = `${fmt(p.s)} – ${fmt(p.e)}`;
+    const txt = { name: esc(p.n), dates, both: `${esc(p.n)}<em>${dates}</em>`, none: '' }[t.text];
+    const outer = { dates, name: `<b>${esc(p.n)}</b>`, both: `<b>${esc(p.n)}</b>${dates}`, none: '' }[t.text];
+    let track = '';
+    if (t.id === 'blocks') {
+      for (let k = 0; k < WEEKS.length; k++) {
+        const a = WEEKS[k], z = Math.min(DAYS, a + 7);
+        const ov = Math.max(0, Math.min(e, z) - Math.max(s, a)) / (z - a);
+        track += `<div class="cell${ov ? '' : ' empty'}" style="left:${X(a) * 1 + 2}px;width:${Math.max(2, X(z - a) - 4)}px${ov ? `;opacity:${(.25 + .75 * ov).toFixed(2)}` : ''}" title="${esc(p.n)} · ${dates}"></div>`;
+      }
+    } else {
+      track += `<div class="bar${p.hero ? ' hero' : ''}" style="left:${l}px;width:${w}px;--i:${p.ws}" title="${esc(p.n)} · ${dates}">${t.pos === 'in' && txt ? `<span class="bt">${txt}</span>` : ''}</div>`;
+      if (t.pos === 'after' && outer) track += `<span class="bl" style="left:${(+l + +w + 12).toFixed(1)}px">${outer}</span>`;
+      if (t.pos === 'up' && outer) track += `<span class="bl up" style="left:${l}px">${outer}</span>`;
+    }
+    rows += `<div class="row p${p.hero ? ' hero' : ''}"><div class="lab"><span class="nm">${esc(p.n)}</span><span class="ws">${WORKSTREAMS[p.ws]}</span></div><div class="track">${track}</div></div>`;
+  }
+
+  // Overlays: grid behind rows, today line above
+  let ov = '';
+  WEEKS.forEach((i, k) => {
+    ov += `<div class="wk" style="left:${X(i)}px"></div>`;
+    if (k % 2 === 0) ov += `<div class="alt" style="left:${X(i)}px;width:${X(Math.min(7, DAYS - i))}px"></div>`;
+  });
+  MONTHS.forEach(m => ov += `<div class="mo-l" style="left:${X(m.s)}px"></div>`);
+  MILESTONES.forEach(m => ov += `<div class="ms" style="left:${X(di(m.d) + .5)}px"></div>`);
+
+  tl.innerHTML = h + `<div class="bd"><div class="ov" style="left:${lab}px;width:${W}px">${ov}</div>${rows}<div class="ov ov2" style="left:${lab}px;width:${W}px"><div class="now" style="left:${nowX}px"></div></div></div>`;
+
+  // Chrome
+  const n = String(state.t + 1).padStart(2, '0');
+  document.getElementById('lcdN').textContent = n;
+  document.getElementById('lcdT').textContent = t.name;
+  document.getElementById('lcdR').textContent = 'ref. ' + t.ref;
+  document.getElementById('ref').innerHTML = `<b>${n} · ${t.name}</b>`;
+  save();
+}
+
+/* ───────────────────────── Controls ───────────────────────── */
+const NS = 'http://www.w3.org/2000/svg';
+const clamp = (x, a, b) => Math.min(b, Math.max(a, x));
+const ctrls = {};
+
+// Tick ring around a knob
+function ring(size, n, r1, r2, labels) {
+  const svg = document.createElementNS(NS, 'svg');
+  svg.setAttribute('viewBox', `0 0 ${size} ${size}`);
+  const c = size / 2;
+  for (let k = 0; k < n; k++) {
+    const a = (-135 + 270 * k / (n - 1)) * Math.PI / 180;
+    const sx = Math.sin(a), cy = -Math.cos(a);
+    const ln = document.createElementNS(NS, 'line');
+    ln.setAttribute('x1', c + sx * r1); ln.setAttribute('y1', c + cy * r1);
+    ln.setAttribute('x2', c + sx * r2); ln.setAttribute('y2', c + cy * r2);
+    ln.setAttribute('stroke', '#9a978f'); ln.setAttribute('stroke-width', k % (labels ? 1 : 5) === 0 ? 1.6 : 1);
+    svg.appendChild(ln);
+    if (labels) {
+      const tx = document.createElementNS(NS, 'text');
+      tx.setAttribute('x', c + sx * (r2 + 9)); tx.setAttribute('y', c + cy * (r2 + 9) + 3);
+      tx.setAttribute('text-anchor', 'middle'); tx.setAttribute('class', 'sel-num'); tx.dataset.k = k;
+      tx.textContent = k + 1;
+      svg.appendChild(tx);
+    }
+  }
+  return svg;
+}
+
+// Shared drag/wheel/keys behaviour for knobs and faders
+function bindValue(el, cfg, get, set) {
+  el.tabIndex = 0;
+  el.setAttribute('role', 'slider');
+  el.setAttribute('aria-label', cfg.label);
+  el.setAttribute('aria-valuemin', cfg.min); el.setAttribute('aria-valuemax', cfg.max);
+  const span = cfg.max - cfg.min;
+  const snap = x => clamp(Math.round((x - cfg.min) / cfg.step) * cfg.step + cfg.min, cfg.min, cfg.max);
+  let y0, v0;
+  el.addEventListener('pointerdown', ev => {
+    el.setPointerCapture(ev.pointerId); y0 = ev.clientY; v0 = get();
+    if (cfg.absolute) set(snap(cfg.absolute(ev)));
+  });
+  el.addEventListener('pointermove', ev => {
+    if (!el.hasPointerCapture(ev.pointerId)) return;
+    set(snap(cfg.absolute ? cfg.absolute(ev) : v0 + (y0 - ev.clientY) / 160 * span));
+  });
+  el.addEventListener('wheel', ev => { ev.preventDefault(); set(snap(get() - Math.sign(ev.deltaY) * cfg.step * (cfg.wheel || 1))); }, { passive: false });
+  el.addEventListener('keydown', ev => {
+    const d = { ArrowUp: 1, ArrowRight: 1, ArrowDown: -1, ArrowLeft: -1 }[ev.key];
+    if (d) { ev.preventDefault(); set(snap(get() + d * cfg.step * (cfg.wheel || 1))); }
+  });
+  el.addEventListener('dblclick', () => set(T[state.t].p[cfg.key]));
+}
+
+function makeKnob(host, cfg) {
+  const wrap = document.createElement('div'); wrap.className = 'kn';
+  wrap.innerHTML = `<div class="kwrap"></div><div class="kl">${cfg.label}</div><div class="kv"></div>`;
+  const kw = wrap.querySelector('.kwrap');
+  kw.appendChild(ring(76, 11, 31, 36));
+  const k = document.createElement('div'); k.className = 'knob'; k.innerHTML = '<div class="cap"></div>';
+  kw.appendChild(k);
+  const kv = wrap.querySelector('.kv');
+  const update = () => {
+    const x = state.v[cfg.key];
+    k.querySelector('.cap').style.transform = `rotate(${-135 + 270 * (x - cfg.min) / (cfg.max - cfg.min)}deg)`;
+    kv.textContent = cfg.fmt(x); k.setAttribute('aria-valuenow', x); k.setAttribute('aria-valuetext', cfg.fmt(x));
+  };
+  bindValue(k, cfg, () => state.v[cfg.key], x => { state.v[cfg.key] = x; update(); render(); });
+  ctrls[cfg.key] = update;
+  host.appendChild(wrap);
+}
+
+function makeFader(host, cfg) {
+  const wrap = document.createElement('div'); wrap.className = 'fd';
+  wrap.innerHTML = `<div class="fader"><div class="ticks"></div><div class="groove"></div><div class="thumb"></div></div><div class="kl">${cfg.label}</div><div class="kv"></div>`;
+  const f = wrap.querySelector('.fader'), th = wrap.querySelector('.thumb'), kv = wrap.querySelector('.kv');
+  const update = () => {
+    const x = state.v[cfg.key], t = (x - cfg.min) / (cfg.max - cfg.min);
+    th.style.top = `${4 + (1 - t) * 88}px`;
+    kv.textContent = cfg.fmt(x); f.setAttribute('aria-valuenow', x); f.setAttribute('aria-valuetext', cfg.fmt(x));
+  };
+  cfg.absolute = ev => { const r = f.getBoundingClientRect(); return cfg.min + (1 - clamp((ev.clientY - r.top - 4) / (r.height - 8), 0, 1)) * (cfg.max - cfg.min); };
+  bindValue(f, cfg, () => state.v[cfg.key], x => { state.v[cfg.key] = x; update(); render(); });
+  ctrls[cfg.key] = update;
+  host.appendChild(wrap);
+}
+
+function makeSelector(host) {
+  host.innerHTML = '<div class="kwrap big"></div><div class="kl">1 – 10</div>';
+  const kw = host.querySelector('.kwrap');
+  const svg = ring(132, 10, 46, 52, true); kw.appendChild(svg);
+  const k = document.createElement('div'); k.className = 'knob big'; k.innerHTML = '<div class="cap"></div>';
+  kw.appendChild(k);
+  const update = () => {
+    k.querySelector('.cap').style.transform = `rotate(${-135 + 30 * state.t}deg)`;
+    svg.querySelectorAll('.sel-num').forEach(n => n.classList.toggle('on', +n.dataset.k === state.t));
+    k.setAttribute('aria-valuenow', state.t + 1); k.setAttribute('aria-valuetext', T[state.t].name);
+  };
+  bindValue(k, { key: 't', label: 'Treatment', min: 0, max: 9, step: 1 }, () => state.t, x => { if (x !== state.t) choose(x); });
+  k.addEventListener('dblclick', e => e.stopImmediatePropagation(), true);
+  svg.querySelectorAll('.sel-num').forEach(n => n.addEventListener('click', () => choose(+n.dataset.k)));
+  ctrls.t = update;
+}
+
+function choose(i) {
+  state.t = (i + T.length) % T.length;
+  state.v = { ...T[state.t].p };
+  Object.values(ctrls).forEach(u => u());
+  render();
+}
+
+const KNOBS = [
+  { key: 'h',    label: 'Accent',  min: 0, max: 360, step: 2,   wheel: 5, fmt: x => `${x}°` },
+  { key: 's',    label: 'Chroma',  min: 0, max: 100, step: 1,   wheel: 4, fmt: x => `${x}%` },
+  { key: 'zoom', label: 'Zoom',    min: 1, max: 3,   step: .05, wheel: 2, fmt: x => `${x.toFixed(2)}×` },
+  { key: 'r',    label: 'Radius',  min: 0, max: 24,  step: 1,   fmt: x => `${x}px` },
+];
+const FADERS = [
+  { key: 'row',  label: 'Row',    min: 28, max: 84, step: 1,   wheel: 2, fmt: x => `${x}` },
+  { key: 'bw',   label: 'Weight', min: .04, max: 1, step: .02, fmt: x => `${Math.round(x * 100)}%` },
+  { key: 'fs',   label: 'Type',   min: 10, max: 18, step: .5,  fmt: x => `${x}px` },
+  { key: 'grid', label: 'Grid',   min: 0,  max: 1,  step: .05, fmt: x => `${Math.round(x * 100)}` },
+];
+const SWITCHES = [['now', 'Today'], ['ms', 'Milestones'], ['wk', 'Weeks'], ['grp', 'Group']];
+
+KNOBS.forEach(c => makeKnob(document.getElementById('knobs'), c));
+FADERS.forEach(c => makeFader(document.getElementById('faders'), c));
+makeSelector(document.getElementById('selector'));
+
+const swHost = document.getElementById('switches');
+SWITCHES.forEach(([k, label]) => {
+  const l = document.createElement('label'); l.className = 'swl';
+  l.innerHTML = `<input type="checkbox" class="sw" ${state.sw[k] ? 'checked' : ''}>${label}`;
+  l.querySelector('input').addEventListener('change', e => { state.sw[k] = e.target.checked; render(); });
+  swHost.appendChild(l);
+});
+
+document.getElementById('prev').onclick = () => choose(state.t - 1);
+document.getElementById('next').onclick = () => choose(state.t + 1);
+document.getElementById('reset').onclick = () => choose(state.t);
+const rams = document.getElementById('rams'), col = document.getElementById('collapse');
+col.onclick = () => { const m = rams.classList.toggle('min'); col.textContent = m ? 'Show' : 'Hide'; col.setAttribute('aria-expanded', !m); };
+document.addEventListener('keydown', e => {
+  if (e.target.closest && e.target.closest('[role=slider],input')) return;
+  if (e.key === ']') choose(state.t + 1);
+  if (e.key === '[') choose(state.t - 1);
+  if (/^[0-9]$/.test(e.key)) choose(e.key === '0' ? 9 : +e.key - 1);
+});
+new ResizeObserver(() => render()).observe(stage);
+
+Object.values(ctrls).forEach(u => u());
+render();
+</script>
+</body>
+</html>
